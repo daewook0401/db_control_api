@@ -191,6 +191,108 @@ curl -H "X-Project: discord" "http://localhost:8081/internal/auth/users/by-email
 
 같은 API라도 헤더 값에 따라 서로 다른 물리 DB로 라우팅됩니다.
 
+## 사용 예시
+
+아래는 이 라이브러리를 사용하는 최소 예시입니다.
+
+### `build.gradle`
+
+```gradle
+dependencies {
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+}
+```
+
+### `application.yml`
+
+```yaml
+app:
+  routing:
+    datasource:
+      header-name: X-Project
+      strict: true
+      projects:
+        tad:
+          jdbc-url: jdbc:postgresql://localhost:5432/tad_db
+          username: tad_app
+          password: tad_password
+          driver-class-name: org.postgresql.Driver
+        fa:
+          jdbc-url: jdbc:postgresql://localhost:5432/fa_db
+          username: fa_app
+          password: fa_password
+          driver-class-name: org.postgresql.Driver
+```
+
+### Entity
+
+```java
+@Entity
+@Table(schema = "auth", name = "tb_user")
+public class User {
+
+    @Id
+    private Long id;
+
+    private String email;
+}
+```
+
+### Repository
+
+```java
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByEmail(String email);
+}
+```
+
+### Controller
+
+```java
+@RestController
+@RequestMapping("/internal/auth/users")
+public class UserController {
+
+    private final UserRepository userRepository;
+
+    public UserController(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @GetMapping("/{id}")
+    public User getUser(@PathVariable Long id) {
+        return userRepository.findById(id).orElseThrow();
+    }
+}
+```
+
+### 요청 예시
+
+```bash
+curl -H "X-Project: tad" http://localhost:8080/internal/auth/users/1
+curl -H "X-Project: fa" http://localhost:8080/internal/auth/users/1
+```
+
+Controller와 Repository 코드는 그대로 유지되고, 요청 헤더만 바뀌면 연결되는 물리 DB가 바뀝니다.
+
+## 권장 요청 패턴
+
+권장:
+
+- frontend -> public API
+- public API가 사용자와 프로젝트 권한 검증
+- public API -> internal API 호출 시 `X-Project` 생성
+
+비권장:
+
+- frontend -> internal API 직접 호출
+- 사용자가 `X-Project`를 직접 제어
+
+외부 클라이언트가 라우팅 헤더를 직접 제어하면, DB 선택 경계 자체가 공격 표면이 될 수 있습니다.
+
 ## 에러 정책
 
 - `X-Project` 누락 -> `400 Bad Request`

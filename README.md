@@ -191,6 +191,107 @@ curl -H "X-Project: discord" "http://localhost:8081/internal/auth/users/by-email
 
 The same API can now reach different physical databases depending on the header.
 
+## Usage Example
+
+Below is a minimal consumer application example.
+
+### `build.gradle`
+
+```gradle
+dependencies {
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
+}
+```
+
+### `application.yml`
+
+```yaml
+app:
+  routing:
+    datasource:
+      header-name: X-Project
+      strict: true
+      projects:
+        tad:
+          jdbc-url: jdbc:postgresql://localhost:5432/tad_db
+          username: tad_app
+          password: tad_password
+          driver-class-name: org.postgresql.Driver
+        fa:
+          jdbc-url: jdbc:postgresql://localhost:5432/fa_db
+          username: fa_app
+          password: fa_password
+          driver-class-name: org.postgresql.Driver
+```
+
+### Entity
+
+```java
+@Entity
+@Table(schema = "auth", name = "tb_user")
+public class User {
+
+    @Id
+    private Long id;
+
+    private String email;
+}
+```
+
+### Repository
+
+```java
+public interface UserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByEmail(String email);
+}
+```
+
+### Controller
+
+```java
+@RestController
+@RequestMapping("/internal/auth/users")
+public class UserController {
+
+    private final UserRepository userRepository;
+
+    public UserController(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    @GetMapping("/{id}")
+    public User getUser(@PathVariable Long id) {
+        return userRepository.findById(id).orElseThrow();
+    }
+}
+```
+
+### Requests
+
+```bash
+curl -H "X-Project: tad" http://localhost:8080/internal/auth/users/1
+curl -H "X-Project: fa" http://localhost:8080/internal/auth/users/1
+```
+
+The controller and repository stay the same. Only the request header changes, and the physical database changes with it.
+
+## Recommended Request Pattern
+
+Recommended:
+
+- frontend -> public API
+- public API validates user and project access
+- public API -> internal API with `X-Project`
+
+Not recommended:
+
+- frontend -> internal API with user-controlled `X-Project`
+
+If the public client can directly control the routing header, the database selection boundary becomes part of the attack surface.
+
 ## Error Policy
 
 - missing `X-Project` -> `400 Bad Request`
