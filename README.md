@@ -120,7 +120,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
@@ -199,7 +199,7 @@ Below is a minimal consumer application example.
 
 ```gradle
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
@@ -356,7 +356,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
 }
 ```
 
@@ -373,3 +373,8 @@ Run the sample app:
 ```bash
 ./gradlew :example-internal-api:bootRun
 ```
+
+## License
+
+This project is licensed under the MIT License.
+See [LICENSE](./LICENSE).

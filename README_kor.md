@@ -120,7 +120,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
@@ -199,7 +199,7 @@ curl -H "X-Project: discord" "http://localhost:8081/internal/auth/users/by-email
 
 ```gradle
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
@@ -357,7 +357,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.1'
+    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
 }
 ```
 
@@ -374,3 +374,8 @@ dependencies {
 ```bash
 ./gradlew :example-internal-api:bootRun
 ```
+
+## 라이선스
+
+이 프로젝트는 MIT License를 따릅니다.
+[LICENSE](./LICENSE) 파일을 참고하세요.

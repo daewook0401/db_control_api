@@ -39,6 +39,27 @@ publishing {
             pom {
                 name = 'Header Routing DataSource Spring Boot Starter'
                 description = 'Spring Boot starter for selecting physical databases by request header'
+                url = 'https://github.com/daewook0401/db_control_api'
+
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+
+                scm {
+                    url = 'https://github.com/daewook0401/db_control_api'
+                    connection = 'scm:git:https://github.com/daewook0401/db_control_api.git'
+                    developerConnection = 'scm:git:https://github.com/daewook0401/db_control_api.git'
+                }
+
+                developers {
+                    developer {
+                        id = 'daewook0401'
+                        name = 'daewook0401'
+                    }
+                }
             }
         }
     }
