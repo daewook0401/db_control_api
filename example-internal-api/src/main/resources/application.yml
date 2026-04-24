@@ -1,0 +1,40 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: example-internal-api
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+app:
+  routing:
+    datasource:
+      header-name: X-Project
+      strict: true
+      projects:
+        tad:
+          jdbc-url: jdbc:postgresql://192.168.219.105:5001/tad_db
+          username: tad_app
+          password: tad_app_password
+          driver-class-name: org.postgresql.Driver
+        fa:
+          jdbc-url: jdbc:postgresql://192.168.219.105:5001/fa_db
+          username: fa_app
+          password: fa_app_password
+          driver-class-name: org.postgresql.Driver
+        discord:
+          jdbc-url: jdbc:postgresql://192.168.219.105:5001/discord_db
+          username: discord_app
+          password: discord_app_password
+          driver-class-name: org.postgresql.Driver
+
+logging:
+  level:
+    io.headerroute.routing.datasource: DEBUG

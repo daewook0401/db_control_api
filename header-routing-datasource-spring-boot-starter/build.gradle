@@ -1,0 +1,60 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+dependencies {
+    api 'org.springframework.boot:spring-boot-autoconfigure'
+    api 'org.springframework.boot:spring-boot-starter-web'
+    api 'org.springframework:spring-jdbc'
+    api 'com.zaxxer:HikariCP'
+
+    compileOnly 'org.springframework.boot:spring-boot-configuration-processor'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+publishing {
+    publications {
+        create('mavenJava', MavenPublication) {
+            from components.java
+
+            artifactId = 'header-routing-datasource-spring-boot-starter'
+
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
+            }
+
+            pom {
+                name = 'Header Routing DataSource Spring Boot Starter'
+                description = 'Spring Boot starter for selecting physical databases by request header'
+            }
+        }
+    }
+
+    repositories {
+        mavenLocal()
+
+        if (System.getenv('GITHUB_ACTOR') != null && System.getenv('GITHUB_TOKEN') != null) {
+            maven {
+                name = 'GitHubPackages'
+                url = uri('https://maven.pkg.github.com/daewook0401/db_control_api')
+                credentials {
+                    username = System.getenv('GITHUB_ACTOR')
+                    password = System.getenv('GITHUB_TOKEN')
+                }
+            }
+        }
+    }
+}

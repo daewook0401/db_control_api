@@ -1,0 +1,4 @@
+rootProject.name = 'db-control-api'
+
+include 'header-routing-datasource-spring-boot-starter'
+include 'example-internal-api'
