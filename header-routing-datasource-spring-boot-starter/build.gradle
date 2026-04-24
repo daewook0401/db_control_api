@@ -1,12 +1,22 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'signing'
 }
 
 java {
     withSourcesJar()
     withJavadocJar()
 }
+
+def centralPortalUsername = providers.gradleProperty('centralPortalUsername')
+        .orElse(providers.environmentVariable('CENTRAL_PORTAL_USERNAME'))
+def centralPortalPassword = providers.gradleProperty('centralPortalPassword')
+        .orElse(providers.environmentVariable('CENTRAL_PORTAL_PASSWORD'))
+def centralNamespace = providers.gradleProperty('centralNamespace')
+        .orElse('io.github.daewook0401')
+def centralPublishingType = providers.gradleProperty('centralPublishingType')
+        .orElse('automatic')
 
 dependencies {
     api 'org.springframework.boot:spring-boot-autoconfigure'
@@ -67,15 +77,76 @@ publishing {
     repositories {
         mavenLocal()
 
-        if (System.getenv('GITHUB_ACTOR') != null && System.getenv('GITHUB_TOKEN') != null) {
+        if (centralPortalUsername.orNull && centralPortalPassword.orNull) {
             maven {
-                name = 'GitHubPackages'
-                url = uri('https://maven.pkg.github.com/daewook0401/db_control_api')
+                name = 'CentralPortal'
+                url = uri('https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/')
                 credentials {
-                    username = System.getenv('GITHUB_ACTOR')
-                    password = System.getenv('GITHUB_TOKEN')
+                    username = centralPortalUsername.orNull
+                    password = centralPortalPassword.orNull
                 }
             }
         }
+    }
+}
+
+signing {
+    required {
+        gradle.taskGraph.hasTask(':header-routing-datasource-spring-boot-starter:publishReleaseToMavenCentral') ||
+                gradle.taskGraph.hasTask(':header-routing-datasource-spring-boot-starter:publishMavenJavaPublicationToCentralPortalRepository')
+    }
+
+    useGpgCmd()
+    sign publishing.publications.mavenJava
+}
+
+def encodedCentralToken = {
+    String username = centralPortalUsername.orNull
+    String password = centralPortalPassword.orNull
+    if (!username || !password) {
+        throw new GradleException('Missing Central Portal credentials. Set centralPortalUsername/centralPortalPassword or CENTRAL_PORTAL_USERNAME/CENTRAL_PORTAL_PASSWORD.')
+    }
+    return "${username}:${password}".bytes.encodeBase64().toString()
+}
+
+def callCentralManualEndpoint = { String method, String urlString ->
+    HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection()
+    connection.setRequestMethod(method)
+    connection.setRequestProperty('Authorization', "Bearer ${encodedCentralToken()}")
+    connection.setRequestProperty('Accept', 'application/json')
+    connection.connect()
+
+    int code = connection.responseCode
+    InputStream stream = code >= 400 ? connection.errorStream : connection.inputStream
+    String body = stream != null ? stream.text : ''
+    if (code >= 400) {
+        throw new GradleException("Central Portal request failed (${code}): ${body}")
+    }
+    return body
+}
+
+tasks.register('publishReleaseToMavenCentral') {
+    group = 'publishing'
+    description = 'Publishes artifacts to the Sonatype OSSRH staging compatibility endpoint and requests upload to Maven Central.'
+    dependsOn 'signMavenJavaPublication'
+    dependsOn 'publishMavenJavaPublicationToCentralPortalRepository'
+
+    doLast {
+        String endpoint = "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/${centralNamespace.get()}?publishing_type=${centralPublishingType.get()}"
+        String response = callCentralManualEndpoint('POST', endpoint)
+        logger.lifecycle("Central Portal upload requested for namespace={}", centralNamespace.get())
+        if (response) {
+            logger.lifecycle(response)
+        }
+    }
+}
+
+tasks.register('listCentralStagingRepositories') {
+    group = 'publishing'
+    description = 'Lists staging repositories currently visible for the configured namespace.'
+
+    doLast {
+        String endpoint = "https://ossrh-staging-api.central.sonatype.com/manual/search/repositories?ip=any&profile_id=${centralNamespace.get()}"
+        logger.lifecycle(callCentralManualEndpoint('GET', endpoint))
     }
 }

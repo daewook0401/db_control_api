@@ -1,13 +1,21 @@
 # DB Control API
 
 This project provides a reusable Spring Boot starter for request-header-based `RoutingDataSource`.
-It is designed for cases where the same internal API and the same JPA repository code must route to different physical databases per project.
+It is designed for internal APIs that must route the same JPA code to different physical databases by project.
 
-The key idea is not `tenant_id` column filtering. Instead, the application selects a physical database by using a header such as `X-Project`.
+The core idea is not `tenant_id` filtering inside one database.
+Instead, the application selects a physical database from a request header such as `X-Project`.
 
 Java 21 and Spring Boot 3.x are used in this repository.
+See the Korean version here: [README_kor.md](./README_kor.md).
 
-See the Korean version here: [README_kor.md](./README_kor.md)
+## Maven Central Coordinates
+
+```text
+groupId    = io.github.daewook0401.headerroute
+artifactId = header-routing-datasource-spring-boot-starter
+version    = 0.1.0
+```
 
 ## What It Solves
 
@@ -15,7 +23,7 @@ Use this starter when:
 
 - one internal API serves multiple projects
 - each project has its own physical database
-- you want to keep `Controller`, `Service`, and `Repository` code free of project-specific branching
+- you want to avoid project-specific `if/else` logic in controllers, services, and repositories
 
 Examples:
 
@@ -23,104 +31,71 @@ Examples:
 - `X-Project: fa` -> `fa_db`
 - `X-Project: discord` -> `discord_db`
 
-The purpose is to remove scattered `if/else` logic from application code and centralize database selection in infrastructure code.
-
 ## Modules
 
 - `header-routing-datasource-spring-boot-starter`
   - reusable starter library
   - `ThreadLocal`-based `ProjectContext`
-  - `ProjectContextFilter` for request header validation
+  - `ProjectContextFilter` for header validation
   - `ProjectRoutingDataSource` based on `AbstractRoutingDataSource`
   - `ProjectRoutingProperties` for `application.yml` binding
 - `example-internal-api`
   - sample application using the starter
-  - includes `auth.tb_user` entity, JPA repository, service, and controller
 
 ## How It Works
 
-1. `ProjectContextFilter` reads the `X-Project` header for each request.
-2. If the header is missing, it returns `400 Bad Request`.
-3. If the header value is not registered, it returns `403 Forbidden`.
-4. If valid, it stores the project key in `ProjectContext` using `ThreadLocal`.
-5. When JPA needs a connection, `ProjectRoutingDataSource` reads `ProjectContext.get()`.
-6. The matching `HikariDataSource` is selected for the current request.
-7. After the request finishes, `ProjectContext.clear()` is always called in `finally`.
+1. `ProjectContextFilter` reads `X-Project` for each request.
+2. Missing header returns `400 Bad Request`.
+3. Unregistered header value returns `403 Forbidden`.
+4. A valid project key is stored in `ProjectContext` via `ThreadLocal`.
+5. `ProjectRoutingDataSource` reads the current key and selects the matching `HikariDataSource`.
+6. `ProjectContext.clear()` is always called in `finally`.
 
-Because of this flow, business code does not need project-specific routing logic. JPA repositories remain unchanged.
+Business code stays unchanged. JPA repositories are used normally.
 
 ## Recommended API Structure
 
-This starter is best suited for internal API environments.
-
-Recommended structure:
+Recommended:
 
 ```text
 Frontend
-  -> Public API / BFF / External API server
-      -> Internal API server
+  -> Public API / BFF / External API
+      -> Internal API
           -> Header-routing datasource
               -> Project-specific physical DB
 ```
 
-Example:
+Typical flow:
 
-```text
-Frontend
-  -> 125 external-api
-      -> 105 internal-api
-          -> tad_db / fa_db / discord_db
-```
-
-Recommended flow:
-
-1. The frontend sends only normal authentication and business requests.
-2. The external API server validates the user and project access.
+1. The frontend sends only user/business requests.
+2. The public API validates user access to the project.
 3. Only the trusted internal caller creates `X-Project`.
-4. The internal API uses that header to select the physical database.
+4. The internal API uses that header to route to the physical database.
 
-Core principle:
-
-- `X-Project` should be an internally derived value, not a value directly trusted from the public client.
-- This library is better for internal APIs than public-facing APIs.
-
-## When This Is Safe
-
-This approach is reasonably safe when:
-
-- the internal API is reachable only inside a private network
-- external users cannot call the internal API directly
-- only trusted internal services can create `X-Project`
-- project authorization is validated before the internal call is made
+This starter is better for internal APIs than directly public APIs.
 
 ## Risk Factors
 
 This design becomes risky when:
 
 - the frontend sends `X-Project` directly
-- a public API trusts the header and switches databases immediately
-- the system routes by project key without validating user access
-- the request flow depends on `ThreadLocal` but later jumps to `@Async`, another thread pool, or a message consumer
-
-In short:
-
-- the header is fine as a routing hint
-- the header should not be treated as the source of authorization
+- a public API trusts the header without access validation
+- the project key is treated as authorization rather than routing context
+- the request flow later jumps to `@Async`, another pool, or a message consumer without context propagation
 
 ## Quick Start
 
 ### 1. Add the dependency
 
-If using the local Maven repository:
+After publication to Maven Central:
 
 ```gradle
 repositories {
-    mavenLocal()
     mavenCentral()
 }
 
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
+    implementation 'io.github.daewook0401.headerroute:header-routing-datasource-spring-boot-starter:0.1.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
@@ -154,14 +129,7 @@ app:
           username: fa_app
           password: fa_app_password
           driver-class-name: org.postgresql.Driver
-        discord:
-          jdbc-url: jdbc:postgresql://192.168.219.105:5001/discord_db
-          username: discord_app
-          password: discord_app_password
-          driver-class-name: org.postgresql.Driver
 ```
-
-To onboard a new project, add a new entry under `projects` without changing application code.
 
 ### 3. Keep using JPA normally
 
@@ -179,108 +147,29 @@ public interface UserRepository extends JpaRepository<User, Long> {
 }
 ```
 
-No project-specific branching is needed in controllers, services, or repositories.
-
 ### 4. Send requests with `X-Project`
 
 ```bash
 curl -H "X-Project: tad" http://localhost:8081/internal/auth/users/1
 curl -H "X-Project: fa" http://localhost:8081/internal/auth/users/1
-curl -H "X-Project: discord" "http://localhost:8081/internal/auth/users/by-email?email=user@example.com"
 ```
 
-The same API can now reach different physical databases depending on the header.
+The same controller and repository can now reach different physical databases depending on the header.
 
-## Usage Example
+## Consumer Example
 
-Below is a minimal consumer application example.
-
-### `build.gradle`
+Minimal consumer `build.gradle`:
 
 ```gradle
 dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
+    implementation 'io.github.daewook0401.headerroute:header-routing-datasource-spring-boot-starter:0.1.0'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'
 }
 ```
 
-### `application.yml`
-
-```yaml
-app:
-  routing:
-    datasource:
-      header-name: X-Project
-      strict: true
-      projects:
-        tad:
-          jdbc-url: jdbc:postgresql://localhost:5432/tad_db
-          username: tad_app
-          password: tad_password
-          driver-class-name: org.postgresql.Driver
-        fa:
-          jdbc-url: jdbc:postgresql://localhost:5432/fa_db
-          username: fa_app
-          password: fa_password
-          driver-class-name: org.postgresql.Driver
-```
-
-### Entity
-
-```java
-@Entity
-@Table(schema = "auth", name = "tb_user")
-public class User {
-
-    @Id
-    private Long id;
-
-    private String email;
-}
-```
-
-### Repository
-
-```java
-public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByEmail(String email);
-}
-```
-
-### Controller
-
-```java
-@RestController
-@RequestMapping("/internal/auth/users")
-public class UserController {
-
-    private final UserRepository userRepository;
-
-    public UserController(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
-
-    @GetMapping("/{id}")
-    public User getUser(@PathVariable Long id) {
-        return userRepository.findById(id).orElseThrow();
-    }
-}
-```
-
-### Requests
-
-```bash
-curl -H "X-Project: tad" http://localhost:8080/internal/auth/users/1
-curl -H "X-Project: fa" http://localhost:8080/internal/auth/users/1
-```
-
-The controller and repository stay the same. Only the request header changes, and the physical database changes with it.
-
-## Recommended Request Pattern
-
-Recommended:
+Minimal request pattern:
 
 - frontend -> public API
 - public API validates user and project access
@@ -290,8 +179,6 @@ Not recommended:
 
 - frontend -> internal API with user-controlled `X-Project`
 
-If the public client can directly control the routing header, the database selection boundary becomes part of the attack surface.
-
 ## Error Policy
 
 - missing `X-Project` -> `400 Bad Request`
@@ -299,8 +186,6 @@ If the public client can directly control the routing header, the database selec
 - missing user -> `404 Not Found`
 
 ## Debug Logging
-
-The sample application enables DEBUG logs for:
 
 ```yaml
 logging:
@@ -316,48 +201,48 @@ Routing datasource lookup for project=tad
 Clearing project context. uri=/internal/auth/users/1, project=tad
 ```
 
-## Publishing The Library
+## Maven Central Publishing
 
-### Publish to local Maven
+This repository is now prepared for Sonatype Central Portal publishing through:
 
-```bash
-./gradlew :header-routing-datasource-spring-boot-starter:publishToMavenLocal
+- Gradle `maven-publish`
+- Gradle `signing`
+- Sonatype OSSRH staging compatibility endpoint
+
+Before the first Central release, you still need:
+
+- a verified Sonatype Central namespace
+  recommended: `io.github.daewook0401`
+- a Sonatype Central Portal user token
+- a PGP private key and passphrase for signing
+
+Store them in `~/.gradle/gradle.properties`.
+An example is provided in [gradle.properties.example](./gradle.properties.example).
+
+Example:
+
+```properties
+centralPortalUsername=your_central_portal_token_username
+centralPortalPassword=your_central_portal_token_password
+centralNamespace=io.github.daewook0401
+centralPublishingType=automatic
+signingKey=your_ascii_armored_private_key
+signingPassword=your_signing_passphrase
 ```
 
-### Publish to GitHub Packages
-
-Set environment variables:
+Release command:
 
 ```bash
-export GITHUB_ACTOR=your_github_id
-export GITHUB_TOKEN=your_github_token
+./gradlew :header-routing-datasource-spring-boot-starter:publishReleaseToMavenCentral
 ```
 
-The token should include package publish permissions such as `write:packages`.
+If `centralPublishingType=automatic`, a valid deployment proceeds automatically.
+If `centralPublishingType=user_managed`, upload succeeds and final publication is completed in the Central Portal UI.
 
-Publish:
+List current staging repositories:
 
 ```bash
-./gradlew :header-routing-datasource-spring-boot-starter:publish
-```
-
-Use from another project:
-
-```gradle
-repositories {
-    mavenCentral()
-    maven {
-        url = uri('https://maven.pkg.github.com/daewook0401/db_control_api')
-        credentials {
-            username = System.getenv('GITHUB_ACTOR')
-            password = System.getenv('GITHUB_TOKEN')
-        }
-    }
-}
-
-dependencies {
-    implementation 'io.headerroute:header-routing-datasource-spring-boot-starter:0.0.2'
-}
+./gradlew :header-routing-datasource-spring-boot-starter:listCentralStagingRepositories
 ```
 
 ## Build And Run

@@ -1,0 +1,10 @@
+# Copy these keys into ~/.gradle/gradle.properties for Maven Central publishing.
+
+centralPortalUsername=your_central_portal_token_username
+centralPortalPassword=your_central_portal_token_password
+centralNamespace=io.github.daewook0401
+centralPublishingType=automatic
+
+# ASCII-armored private key and passphrase used for signing
+signingKey=your_ascii_armored_private_key
+signingPassword=your_signing_passphrase
